@@ -470,13 +470,16 @@ public final class ConsumerCoordinator extends AbstractCoordinator {
         invokeCompletedOffsetCommitCallbacks();
 
         if (subscriptions.hasAutoAssignedPartitions()) {
+            //如果没有指定分区分配策略 直接抛异常
             if (protocol == null) {
                 throw new IllegalStateException("User configured " + ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG +
                     " to empty while trying to subscribe for group protocol to auto assign partitions");
             }
             // Always update the heartbeat last poll time so that the heartbeat thread does not leave the
             // group proactively due to application inactivity even if (say) the coordinator cannot be found.
+            // 3s心跳
             pollHeartbeat(timer.currentTimeMs());
+            //判断coordinator 是否准备好了
             if (coordinatorUnknown() && !ensureCoordinatorReady(timer)) {
                 return false;
             }

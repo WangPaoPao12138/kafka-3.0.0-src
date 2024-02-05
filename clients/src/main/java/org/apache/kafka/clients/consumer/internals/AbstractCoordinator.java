@@ -242,7 +242,9 @@ public abstract class AbstractCoordinator implements Closeable {
                 fatalFindCoordinatorException = null;
                 throw fatalException;
             }
+            //创建 一个查找 Coordinator 的请求 并且发送
             final RequestFuture<Void> future = lookupCoordinator();
+            //获取服务端返回的结果
             client.poll(future, timer);
 
             if (!future.isDone()) {
@@ -283,6 +285,7 @@ public abstract class AbstractCoordinator implements Closeable {
                 log.debug("No broker available to send FindCoordinator request");
                 return RequestFuture.noBrokersAvailable();
             } else {
+                //有节点接收查找 Coordinator 请求
                 findCoordinatorFuture = sendFindCoordinatorRequest(node);
             }
         }
@@ -815,9 +818,11 @@ public abstract class AbstractCoordinator implements Closeable {
     private RequestFuture<Void> sendFindCoordinatorRequest(Node node) {
         // initiate the group metadata request
         log.debug("Sending FindCoordinator request to broker {}", node);
+        //创建 发送Coordinator 请求数据信息
         FindCoordinatorRequestData data = new FindCoordinatorRequestData()
                 .setKeyType(CoordinatorType.GROUP.id())
                 .setKey(this.rebalanceConfig.groupId);
+        //进一步封装
         FindCoordinatorRequest.Builder requestBuilder = new FindCoordinatorRequest.Builder(data);
         return client.send(node, requestBuilder)
                 .compose(new FindCoordinatorResponseHandler());

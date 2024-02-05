@@ -296,6 +296,7 @@ public class Sender implements Runnable {
      *
      */
     void runOnce() {
+        //事务相关操作
         if (transactionManager != null) {
             try {
                 transactionManager.maybeResolveSequences();
@@ -324,13 +325,17 @@ public class Sender implements Runnable {
         }
 
         long currentTimeMs = time.milliseconds();
+        //发送数据
         long pollTimeout = sendProducerData(currentTimeMs);
+        //获取发送结果
         client.poll(pollTimeout, currentTimeMs);
     }
 
     private long sendProducerData(long now) {
+        //获取元数据
         Cluster cluster = metadata.fetch();
         // get the list of partitions with data ready to send
+        //判断 32M缓存是否准备好
         RecordAccumulator.ReadyCheckResult result = this.accumulator.ready(cluster, now);
 
         // if there are any partitions whose leaders are not known yet, force metadata update
@@ -358,6 +363,7 @@ public class Sender implements Runnable {
         }
 
         // create produce requests
+        //发往每个节点数据，进行封装
         Map<Integer, List<ProducerBatch>> batches = this.accumulator.drain(cluster, result.readyNodes, this.maxRequestSize, now);
         addToInflightBatches(batches);
         if (guaranteeMessageOrder) {
@@ -405,6 +411,7 @@ public class Sender implements Runnable {
             // otherwise the select time will be the time difference between now and the metadata expiry time;
             pollTimeout = 0;
         }
+        //发送请求
         sendProduceRequests(batches, now);
         return pollTimeout;
     }

@@ -193,10 +193,12 @@ public final class RecordAccumulator {
         if (headers == null) headers = Record.EMPTY_HEADERS;
         try {
             // check if we have an in-progress batch
+            //获取或者创建一个队列（按照每个主题的分区）
             Deque<ProducerBatch> dq = getOrCreateDeque(tp);
             synchronized (dq) {
                 if (closed)
                     throw new KafkaException("Producer closed while send in progress");
+                //尝试向队列里面添加数据（正常添加不成功）
                 RecordAppendResult appendResult = tryAppend(timestamp, key, value, headers, callback, dq, nowMs);
                 if (appendResult != null)
                     return appendResult;
@@ -209,8 +211,10 @@ public final class RecordAccumulator {
             }
 
             byte maxUsableMagic = apiVersions.maxUsableProduceMagic();
+            //this.batchSize 16k 数据大小17k
             int size = Math.max(this.batchSize, AbstractRecords.estimateSizeInBytesUpperBound(maxUsableMagic, compression, key, value, headers));
             log.trace("Allocating a new {} byte message buffer for topic {} partition {} with remaining timeout {}ms", size, tp.topic(), tp.partition(), maxTimeToBlock);
+            //申请内存 内存池分配内存 双端队列
             buffer = free.allocate(size, maxTimeToBlock);
 
             // Update the current time in case the buffer allocation blocked above.
@@ -226,11 +230,14 @@ public final class RecordAccumulator {
                     return appendResult;
                 }
 
+                //封装内存 buffer
                 MemoryRecordsBuilder recordsBuilder = recordsBuilder(buffer, maxUsableMagic);
+                //再次封装 （得到真正批次大小）
                 ProducerBatch batch = new ProducerBatch(tp, recordsBuilder, nowMs);
                 FutureRecordMetadata future = Objects.requireNonNull(batch.tryAppend(timestamp, key, value, headers,
                         callback, nowMs));
 
+                //向队列末尾添加批次
                 dq.addLast(batch);
                 incomplete.add(batch);
 
@@ -461,11 +468,16 @@ public final class RecordAccumulator {
                         unknownLeaderTopics.add(part.topic());
                     } else if (!readyNodes.contains(leader) && !isMuted(part)) {
                         long waitedTimeMs = batch.waitedTimeMs(nowMs);
+                        //如果不是第一次拉去 且等待时间小于重试时间 backingOff = true
                         boolean backingOff = batch.attempts() > 0 && waitedTimeMs < retryBackoffMs;
+                        //如果 backingOff 为true 取retryBackoffMs 如果不是第一次拉取 取lingerMs 默认0
                         long timeToWaitMs = backingOff ? retryBackoffMs : lingerMs;
+                        //批次大小满足发送条件
                         boolean full = deque.size() > 1 || batch.isFull();
+                        //超时也要发送
                         boolean expired = waitedTimeMs >= timeToWaitMs;
                         boolean transactionCompleting = transactionManager != null && transactionManager.isCompleting();
+                        //批次大小满  lingerMs时间到
                         boolean sendable = full
                             || expired
                             || exhausted

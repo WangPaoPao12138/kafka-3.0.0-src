@@ -255,8 +255,10 @@ public class Fetcher<K, V> implements Closeable {
             final Node fetchTarget = entry.getKey();
             final FetchSessionHandler.FetchRequestData data = entry.getValue();
             final FetchRequest.Builder request = FetchRequest.Builder
+                    //maxWaitMs 默认500ms minBytes 默认最少一次抓1字节
                     .forConsumer(this.maxWaitMs, this.minBytes, data.toSend())
                     .isolationLevel(isolationLevel)
+                    //maxBytes 最多一次抓多少数据默认 50ms
                     .setMaxBytes(this.maxBytes)
                     .metadata(data.metadata())
                     .toForget(data.toForget())
@@ -276,6 +278,7 @@ public class Fetcher<K, V> implements Closeable {
                 public void onSuccess(ClientResponse resp) {
                     synchronized (Fetcher.this) {
                         try {
+                            //成功获取到数据
                             FetchResponse response = (FetchResponse) resp.responseBody();
                             FetchSessionHandler handler = sessionHandler(fetchTarget.id());
                             if (handler == null) {
@@ -635,12 +638,15 @@ public class Fetcher<K, V> implements Closeable {
     public Map<TopicPartition, List<ConsumerRecord<K, V>>> fetchedRecords() {
         Map<TopicPartition, List<ConsumerRecord<K, V>>> fetched = new HashMap<>();
         Queue<CompletedFetch> pausedCompletedFetches = new ArrayDeque<>();
+        //每次处理最大条数500条
         int recordsRemaining = maxPollRecords;
 
         try {
             while (recordsRemaining > 0) {
                 if (nextInLineFetch == null || nextInLineFetch.isConsumed) {
+                    //获取数据
                     CompletedFetch records = completedFetches.peek();
+                    //如果没数据 可以退出循环
                     if (records == null) break;
 
                     if (records.notInitialized()) {
@@ -661,6 +667,7 @@ public class Fetcher<K, V> implements Closeable {
                     } else {
                         nextInLineFetch = records;
                     }
+                    //处理数据
                     completedFetches.poll();
                 } else if (subscriptions.isPaused(nextInLineFetch.partition)) {
                     // when the partition is paused we add the records back to the completedFetches queue instead of draining
